@@ -172,6 +172,19 @@ public final class KeystoreGenerator {
      *
      * @param signingAlg    - The signature algorithm (Example: SHA512WithRSA, SHA512withECDSA, etc)<br>
      *                      You can find a list of supported signature algorithms at https://bouncycastle.org/specifications.html, section "Signature Algorithms"
+     * @param expiryNbMonth - The number of month before the expiration of the certificate
+     * @param certUserInfo  - The user settings of the certificate (BCStyle.C, BCStyle.O, BCStyle.CN, etc)
+     * @return
+     */
+    public static KeystorePasswordHolder createEcWithDefaultCurveKeystoreAndPassword(String signingAlg, int expiryNbMonth, Map<ASN1ObjectIdentifier, String> certUserInfo) {
+        return createKeystore(signingAlg, generateEcdsaKeyPair(EC_CURVE), null, expiryNbMonth, certUserInfo);
+    }
+
+    /**
+     * Create a keystore with ECDSA and the default curve (secp384r1, supported by most browsers)
+     *
+     * @param signingAlg    - The signature algorithm (Example: SHA512WithRSA, SHA512withECDSA, etc)<br>
+     *                      You can find a list of supported signature algorithms at https://bouncycastle.org/specifications.html, section "Signature Algorithms"
      * @param keystorePwd   - The password to use with key the store
      * @param expiryNbMonth - The number of month before the expiration of the certificate
      * @param certUserInfo  - The user settings of the certificate (BCStyle.C, BCStyle.O, BCStyle.CN, etc)

@@ -38,19 +38,45 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class KeystoreGeneratorTest {
-
     private static final String GIVEN_NAME = "given name";
     private static final String ORGANIZATION = "organization";
     private static final String ORGANIZATIONAL_UNIT_NAME = "organizational unit name";
     private static final String COMMON_NAME = "common name";
     private final Map<ASN1ObjectIdentifier, String> CERT_USER_INFOS;
-
     public KeystoreGeneratorTest() {
         CERT_USER_INFOS = new HashMap<>();
         CERT_USER_INFOS.put(BCStyle.GIVENNAME, GIVEN_NAME);
         CERT_USER_INFOS.put(BCStyle.O, ORGANIZATION);
         CERT_USER_INFOS.put(BCStyle.OU, ORGANIZATIONAL_UNIT_NAME);
         CERT_USER_INFOS.put(BCStyle.CN, COMMON_NAME);
+    }
+
+    @Test
+    public void createEcWithDefaultCurveKeystoreAndPassword() throws Exception {
+        String mainSigningAlgSha512Ec = KeystoreGenerator.MAIN_SIGNING_ALG_SHA512_EC;
+
+        KeystoreGenerator.KeystorePasswordHolder keystorePasswordHolder =
+                KeystoreGenerator.createEcWithDefaultCurveKeystoreAndPassword(
+                        mainSigningAlgSha512Ec,
+                        36,
+                        CERT_USER_INFOS);
+
+        KeyStore keyStore = keystorePasswordHolder.getKeyStore();
+        String password = keystorePasswordHolder.getPassword();
+
+        ECPrivateKeyImpl key = (ECPrivateKeyImpl) keyStore.getKey(KeystoreGenerator.ALIAS, password.toCharArray());
+        String curveName = getEcCurveName(key);
+
+        X509Certificate certificate = (X509Certificate) keyStore.getCertificate(KeystoreGenerator.ALIAS);
+
+        X500Principal issuerX500Principal = certificate.getIssuerX500Principal();
+        X500Name x500name = new X500Name(issuerX500Principal.getName(X500Principal.CANONICAL));
+
+        Assert.assertEquals("P-384", curveName); //P-384 == secp384r1
+
+        assertCertUserInfos(x500name);
+        Assert.assertEquals(mainSigningAlgSha512Ec, certificate.getSigAlgName());
+        assertThat(password).isNotEmpty().hasSize(64);
     }
 
     @Test
