@@ -1,5 +1,5 @@
 /*
- *    Copyright 2014 - 2017 Yannick Watier
+ *    Copyright 2014 - 2018 Yannick Watier
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -33,13 +33,18 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
-import org.joda.time.DateTime;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigInteger;
 import java.security.*;
 import java.security.cert.X509Certificate;
+import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.Map;
+
+import static java.time.ZoneOffset.UTC;
 
 /**
  * Created by yannick on 6/5/2017.
@@ -83,19 +88,22 @@ public final class KeystoreGenerator {
      * @param certUserInfo  - The user settings of the certificate (BCStyle.C, BCStyle.O, BCStyle.CN, etc)
      * @return
      */
-    public static KeystorePasswordHolder createEcKeystore(String signingAlg, String curveName, String keystorePwd, int expiryNbMonth, Map<ASN1ObjectIdentifier, String> certUserInfo) {
+    public static @NotNull KeystorePasswordHolder createEcKeystore(@NotNull String signingAlg,
+                                                                   @NotNull String curveName,
+                                                                   @NotNull String keystorePwd,
+                                                                   int expiryNbMonth,
+                                                                   @NotNull Map<ASN1ObjectIdentifier, String> certUserInfo) {
         return createKeystore(signingAlg, generateEcdsaKeyPair(curveName), keystorePwd, expiryNbMonth, certUserInfo);
     }
 
-    private static KeystorePasswordHolder createKeystore(String signingAlg, KeyPair pair, String keystorePwd, int expiryNbMonth, Map<ASN1ObjectIdentifier, String> certUserInfo) {
+    private static @NotNull KeystorePasswordHolder createKeystore(@NotNull String signingAlg,
+                                                                  @NotNull KeyPair pair,
+                                                                  @Nullable String keystorePwd,
+                                                                  int expiryNbMonth,
+                                                                  @NotNull Map<ASN1ObjectIdentifier, String> certUserInfo) {
 
         String password = (keystorePwd == null ? nextPassword() : keystorePwd);
         KeyStore keyStore;
-
-        if (pair == null) {
-            return null;
-        }
-
         PublicKey publicKey = pair.getPublic();
         PrivateKey privateKey = pair.getPrivate();
 
@@ -107,10 +115,11 @@ public final class KeystoreGenerator {
 
         X500Name xName = nameBuilder.build();
         BigInteger serialNumber = new BigInteger(SERIAL_BYTES_LENGTH, secureRandom);
-        DateTime startDate = new DateTime();
-        DateTime endDate = startDate.plusMonths(expiryNbMonth);
+
+        LocalDateTime startDate = LocalDateTime.now();
+        LocalDateTime endDate = startDate.plusMonths(expiryNbMonth);
         SubjectPublicKeyInfo infos = SubjectPublicKeyInfo.getInstance(publicKey.getEncoded());
-        X509v3CertificateBuilder certBuilder = new X509v3CertificateBuilder(xName, serialNumber, startDate.toDate(), endDate.toDate(), xName, infos);
+        X509v3CertificateBuilder certBuilder = new X509v3CertificateBuilder(xName, serialNumber, Date.from(startDate.toInstant(UTC)), Date.from(endDate.toInstant(UTC)), xName, infos);
         try {
             certBuilder.addExtension(Extension.subjectAlternativeName,
                     false, new GeneralNames(
@@ -119,12 +128,12 @@ public final class KeystoreGenerator {
             e.printStackTrace();
         }
 
-        ContentSigner signer;
+        ContentSigner signer = null;
         try {
             signer = new JcaContentSignerBuilder(signingAlg).build(privateKey);
         } catch (OperatorCreationException e1) {
             LOGGER.error(e1.toString(), e1);
-            return null;
+            System.exit(-1);
         }
 
         X509CertificateHolder certHolder = certBuilder.build(signer);
@@ -144,7 +153,7 @@ public final class KeystoreGenerator {
         return new KeystorePasswordHolder(password, keyStore);
     }
 
-    private static KeyPair generateEcdsaKeyPair(String curveName) {
+    private static @NotNull KeyPair generateEcdsaKeyPair(@NotNull String curveName) {
         KeyPairGenerator keyGenerator = null;
 
         try {
@@ -154,7 +163,12 @@ public final class KeystoreGenerator {
             LOGGER.error(e.toString(), e);
         }
 
-        return keyGenerator != null ? keyGenerator.generateKeyPair() : null;
+        if (keyGenerator == null) {
+            LOGGER.error("Unable to generate a KeyPair");
+            System.exit(-1);
+        }
+
+        return keyGenerator.generateKeyPair();
     }
 
     /**
@@ -163,7 +177,7 @@ public final class KeystoreGenerator {
      *
      * @return
      */
-    private static String nextPassword() {
+    private static @NotNull String nextPassword() {
         return new BigInteger(320, secureRandom).toString(32);
     }
 
@@ -176,7 +190,9 @@ public final class KeystoreGenerator {
      * @param certUserInfo  - The user settings of the certificate (BCStyle.C, BCStyle.O, BCStyle.CN, etc)
      * @return
      */
-    public static KeystorePasswordHolder createEcWithDefaultCurveKeystoreAndPassword(String signingAlg, int expiryNbMonth, Map<ASN1ObjectIdentifier, String> certUserInfo) {
+    public static @NotNull KeystorePasswordHolder createEcWithDefaultCurveKeystoreAndPassword(@NotNull String signingAlg,
+                                                                                              int expiryNbMonth,
+                                                                                              @NotNull Map<ASN1ObjectIdentifier, String> certUserInfo) {
         return createKeystore(signingAlg, generateEcdsaKeyPair(EC_CURVE), null, expiryNbMonth, certUserInfo);
     }
 
@@ -190,7 +206,10 @@ public final class KeystoreGenerator {
      * @param certUserInfo  - The user settings of the certificate (BCStyle.C, BCStyle.O, BCStyle.CN, etc)
      * @return
      */
-    public static KeystorePasswordHolder createEcWithDefaultCurveKeystore(String signingAlg, String keystorePwd, int expiryNbMonth, Map<ASN1ObjectIdentifier, String> certUserInfo) {
+    public static @NotNull KeystorePasswordHolder createEcWithDefaultCurveKeystore(@NotNull String signingAlg,
+                                                                                   @NotNull String keystorePwd,
+                                                                                   int expiryNbMonth,
+                                                                                   @NotNull Map<ASN1ObjectIdentifier, String> certUserInfo) {
         return createKeystore(signingAlg, generateEcdsaKeyPair(EC_CURVE), keystorePwd, expiryNbMonth, certUserInfo);
     }
 
@@ -204,7 +223,10 @@ public final class KeystoreGenerator {
      * @param certUserInfo  - The user settings of the certificate (BCStyle.C, BCStyle.O, BCStyle.CN, etc)
      * @return
      */
-    public static KeystorePasswordHolder createEcKeystore(String signingAlg, String curveName, int expiryNbMonth, Map<ASN1ObjectIdentifier, String> certUserInfo) {
+    public static @NotNull KeystorePasswordHolder createEcKeystore(@NotNull String signingAlg,
+                                                                   @NotNull String curveName,
+                                                                   int expiryNbMonth,
+                                                                   @NotNull Map<ASN1ObjectIdentifier, String> certUserInfo) {
         return createKeystore(signingAlg, generateEcdsaKeyPair(curveName), null, expiryNbMonth, certUserInfo);
     }
 
@@ -218,11 +240,14 @@ public final class KeystoreGenerator {
      * @param certUserInfo  - The user settings of the certificate (BCStyle.C, BCStyle.O, BCStyle.CN, etc)
      * @return
      */
-    public static KeystorePasswordHolder createRsaKeystore(String signingAlg, short keySize, int expiryNbMonth, Map<ASN1ObjectIdentifier, String> certUserInfo) {
+    public static @NotNull KeystorePasswordHolder createRsaKeystore(@NotNull String signingAlg,
+                                                                    short keySize,
+                                                                    int expiryNbMonth,
+                                                                    @NotNull Map<ASN1ObjectIdentifier, String> certUserInfo) {
         return createKeystore(signingAlg, generateRsaKeyPair(keySize), null, expiryNbMonth, certUserInfo);
     }
 
-    private static KeyPair generateRsaKeyPair(short keySize) {
+    private static @NotNull KeyPair generateRsaKeyPair(short keySize) {
         KeyPairGenerator keyGenerator = null;
 
         try {
@@ -233,7 +258,12 @@ public final class KeystoreGenerator {
             LOGGER.error(e.toString(), e);
         }
 
-        return keyGenerator != null ? keyGenerator.generateKeyPair() : null;
+        if (keyGenerator == null) {
+            LOGGER.error("Unable to generate a KeyPair");
+            System.exit(-1);
+        }
+
+        return keyGenerator.generateKeyPair();
     }
 
     /**
@@ -247,7 +277,11 @@ public final class KeystoreGenerator {
      * @param certUserInfo  - The user settings of the certificate (BCStyle.C, BCStyle.O, BCStyle.CN, etc)
      * @return
      */
-    public static KeystorePasswordHolder createRsaKeystore(String signingAlg, String keystorePwd, short keySize, int expiryNbMonth, Map<ASN1ObjectIdentifier, String> certUserInfo) {
+    public static @NotNull KeystorePasswordHolder createRsaKeystore(@NotNull String signingAlg,
+                                                                    @NotNull String keystorePwd,
+                                                                    short keySize,
+                                                                    int expiryNbMonth,
+                                                                    @NotNull Map<ASN1ObjectIdentifier, String> certUserInfo) {
         return createKeystore(signingAlg, generateRsaKeyPair(keySize), keystorePwd, expiryNbMonth, certUserInfo);
     }
 
@@ -255,7 +289,8 @@ public final class KeystoreGenerator {
         private final String password;
         private final KeyStore keyStore;
 
-        public KeystorePasswordHolder(String password, KeyStore keyStore) {
+        public KeystorePasswordHolder(@NotNull String password,
+                                      @NotNull KeyStore keyStore) {
             this.password = password;
             this.keyStore = keyStore;
         }
